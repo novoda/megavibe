@@ -1,11 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-# Megavibe — one-command install for macOS
-# Usage: curl -fsSL https://raw.githubusercontent.com/poma-ai/megavibe/main/install.sh | bash
+# Megavibe — one-command install for Linux
+# Usage: curl -fsSL https://raw.githubusercontent.com/novoda/megavibe/main/install.sh | bash
 #
 # Designed for first-time terminal users:
-# - Auto-installs Homebrew, Node.js, git, jq if missing
+# - Auto-installs Node.js, git, jq, python3 if missing
 # - Guides through each login step interactively
 # - Friendly output with clear next steps
 
@@ -25,11 +25,26 @@ echo -e "${BOLD}Welcome to Megavibe${RESET}"
 echo -e "${DIM}Give Claude Code a memory that never dies.${RESET}"
 echo ""
 
-# ─── macOS check ──────────────────────────────────────────────────────
+# ─── OS check ────────────────────────────────────────────────────────
 
-if [[ "$(uname)" != "Darwin" ]]; then
-  echo -e "${RED}Megavibe currently only works on macOS.${RESET}"
-  echo "  Linux support is planned. Follow https://github.com/poma-ai/megavibe for updates."
+if [[ "$(uname)" != "Linux" ]]; then
+  echo -e "${RED}This script only supports Linux.${RESET}"
+  exit 1
+fi
+
+# ─── Detect package manager ───────────────────────────────────────────
+
+if command -v apt-get &>/dev/null; then
+  PKG_INSTALL="sudo apt-get install -y"
+  PKG_UPDATE="sudo apt-get update -y"
+elif command -v dnf &>/dev/null; then
+  PKG_INSTALL="sudo dnf install -y"
+  PKG_UPDATE="sudo dnf makecache"
+elif command -v pacman &>/dev/null; then
+  PKG_INSTALL="sudo pacman -S --noconfirm"
+  PKG_UPDATE="sudo pacman -Sy"
+else
+  echo -e "${RED}Unsupported package manager. Please install node, jq, and python3 manually.${RESET}"
   exit 1
 fi
 
@@ -38,39 +53,23 @@ fi
 info "Step 1 of 4: Checking prerequisites"
 echo ""
 
-# Xcode Command Line Tools (provides git)
-if ! xcode-select -p &>/dev/null; then
-  echo "  Installing Xcode Command Line Tools (this may take a few minutes)..."
-  echo -e "  ${DIM}A popup may appear — click 'Install' if it does.${RESET}"
-  xcode-select --install 2>/dev/null || true
-  # Wait for installation to complete
-  until xcode-select -p &>/dev/null; do
-    sleep 5
-  done
-  ok "Xcode Command Line Tools"
-else
-  ok "Xcode Command Line Tools (already installed)"
-fi
+# Update package index
+echo "  Updating package index..."
+$PKG_UPDATE &>/dev/null
 
-# Homebrew
-if ! command -v brew &>/dev/null; then
-  echo "  Installing Homebrew (the macOS package manager)..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  # Add brew to PATH for this session (Apple Silicon vs Intel)
-  if [ -f "/opt/homebrew/bin/brew" ]; then
-    eval "$(/opt/homebrew/bin/brew shellenv)"
-  elif [ -f "/usr/local/bin/brew" ]; then
-    eval "$(/usr/local/bin/brew shellenv)"
-  fi
-  ok "Homebrew"
+# git
+if ! command -v git &>/dev/null; then
+  echo "  Installing git..."
+  $PKG_INSTALL git
+  ok "git"
 else
-  ok "Homebrew (already installed)"
+  ok "git (already installed)"
 fi
 
 # Node.js (for npm/npx, needed by MCP servers)
 if ! command -v node &>/dev/null; then
   echo "  Installing Node.js..."
-  brew install node
+  $PKG_INSTALL nodejs npm
   ok "Node.js $(node --version)"
 else
   ok "Node.js $(node --version) (already installed)"
@@ -79,7 +78,7 @@ fi
 # jq (needed by hooks)
 if ! command -v jq &>/dev/null; then
   echo "  Installing jq..."
-  brew install jq
+  $PKG_INSTALL jq
   ok "jq"
 else
   ok "jq (already installed)"
@@ -88,7 +87,7 @@ fi
 # Python 3 (for poma-memory)
 if ! command -v python3 &>/dev/null; then
   echo "  Installing Python 3..."
-  brew install python3
+  $PKG_INSTALL python3
   ok "Python $(python3 --version 2>&1 | cut -d' ' -f2)"
 else
   ok "Python $(python3 --version 2>&1 | cut -d' ' -f2) (already installed)"
